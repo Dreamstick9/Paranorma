@@ -4,6 +4,7 @@ import voyageai
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
+import anthropic
 
 load_dotenv()
 
@@ -13,7 +14,7 @@ my_db_uri = os.getenv("MONGO_URI")
 # downloaded the data from hf
 url = "https://huggingface.co/datasets/lukeslp/strange-places-mysterious-phenomena/resolve/main/strange_places_v5.2.json"
 df = pd.read_json(url)
-df = df.head(500)
+df = df.sample(n=500, random_state=42)
 
 # Connected with the embedding model
 vo = voyageai.Client(api_key=my_api_key)
@@ -45,4 +46,68 @@ data_to_insert = df.to_dict(orient ="records")
 
 collection.insert_many(data_to_insert)
 
-print(len(data_to_insert))
+def vector_Search(query):
+    query_embedding = vo.embed([query], model="voyage-4-large", input_type="query").embeddings[0]
+
+    if query_embedding is None:
+        return "Embedding generation failed bruh try that again"
+    
+    pipeline = [
+        {
+            "$vectorSearch": {
+                "index": "vector_index",
+                "queryVector": query_embedding,
+                "path": "embedding",
+                "numCandidates": 150,
+                "limit": 5,
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "embedding": 0,
+                "score": {
+                    "$meta": "vectorSearchScore"
+                },
+            }
+        },
+    ]
+    results = collection.aggregate(pipeline)
+    return list(results)
+
+
+
+client = anthropic.Anthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
+    base_url="https://opencode.ai/zen/v1" 
+)
+
+def handle_user_query(query):
+    retrieval = vector_Search(query)
+    search_result = ""
+    for row in retrieval:
+        search_result+= f"Location: {doc.get('name', 'Unknown')}\n"
+        search_result+= f"Description: {doc.get('description', 'No description found.')}\n"
+        search_result+= "-" * 20 + "\n"
+
+    response = client.message.create(
+
+
+        model = "tencent/hy3:free",
+        max_tokens=1024,
+        system="You are a helpful expert on mysterious places and phenomena. Answer the user's question using ONLY the information provided in the Context below. If the context doesn't contain the answer, politely say ""I dont have enough information in my database to answer that."
+        messages=[
+            {
+                "role": "user",
+                "content": "Answer this user query: "
+                + query
+                + " with the following context: "
+                + search_result,
+            }
+        ],
+    )
+
+    return (response.content[0].text)
+
+    
+
