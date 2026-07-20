@@ -12,39 +12,39 @@ my_api_key = os.getenv("VOYAGE_API_KEY")
 my_db_uri = os.getenv("MONGO_URI")
 
 # # downloaded the data from hf
-url = "https://huggingface.co/datasets/lukeslp/strange-places-mysterious-phenomena/resolve/main/strange_places_v5.2.json"
-df = pd.read_json(url)
-df = df.sample(n=500, random_state=42)
+# url = "https://huggingface.co/datasets/lukeslp/strange-places-mysterious-phenomena/resolve/main/strange_places_v5.2.json"
+# df = pd.read_json(url)
+# df = df.sample(n=500, random_state=42)
 
 # Connected with the embedding model
 vo = voyageai.Client(api_key=my_api_key)
 
-# Function for string input to vector ouput
-def get_embedding(text):
-    text = str(text)
-    if text == '':
-        return []
-    text_embeddings = vo.embed([text], model="voyage-4-large", input_type="document").embeddings
+# # Function for string input to vector ouput
+# def get_embedding(text):
+#     text = str(text)
+#     if text == '':
+#         return []
+#     text_embeddings = vo.embed([text], model="voyage-4-large", input_type="document").embeddings
 
-    return text_embeddings[0]
+#     return text_embeddings[0]
 
-# applying the function to all the rows
-target = df["description"]
+# # applying the function to all the rows
+# target = df["description"]
 
-df["embedding"] = target.apply(get_embedding)
+# df["embedding"] = target.apply(get_embedding)
 
-# storing the embeddings in the mogo db database
+# # storing the embeddings in the mogo db database
 uri = my_db_uri
 client = MongoClient(uri)
 
 database = client["locations"]
 collection = database["strange_loactions"]
 
-collection.delete_many({})
+# collection.delete_many({})
 
-data_to_insert = df.to_dict(orient ="records")
+# data_to_insert = df.to_dict(orient ="records")
 
-collection.insert_many(data_to_insert)
+# collection.insert_many(data_to_insert)
 
 def vector_Search(query):
     query_embedding = vo.embed([query], model="voyage-4-large", input_type="query").embeddings[0]
@@ -106,7 +106,7 @@ def handle_user_query(query):
         ],
     )
 
-    return response.choices[0].message.content
+    return response.choices[0].message.content, search_result
 
 
 
