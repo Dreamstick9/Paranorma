@@ -4,14 +4,14 @@ import voyageai
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
-import anthropic
+from openai import OpenAI
 
 load_dotenv()
 
 my_api_key = os.getenv("VOYAGE_API_KEY")
 my_db_uri = os.getenv("MONGO_URI")
 
-# downloaded the data from hf
+# # downloaded the data from hf
 url = "https://huggingface.co/datasets/lukeslp/strange-places-mysterious-phenomena/resolve/main/strange_places_v5.2.json"
 df = pd.read_json(url)
 df = df.sample(n=500, random_state=42)
@@ -77,7 +77,7 @@ def vector_Search(query):
 
 
 
-client = anthropic.Anthropic(
+bclient = OpenAI(
     api_key=os.getenv("ANTHROPIC_API_KEY"),
     base_url="https://opencode.ai/zen/v1" 
 )
@@ -86,28 +86,29 @@ def handle_user_query(query):
     retrieval = vector_Search(query)
     search_result = ""
     for row in retrieval:
-        search_result+= f"Location: {doc.get('name', 'Unknown')}\n"
-        search_result+= f"Description: {doc.get('description', 'No description found.')}\n"
+        search_result+= f"Location: {row.get('name', 'Unknown')}\n"
+        search_result+= f"Description: {row.get('description', 'No description found.')}\n"
         search_result+= "-" * 20 + "\n"
 
-    response = client.message.create(
-
-
-        model = "tencent/hy3:free",
+    response = bclient.chat.completions.create(
+        model="hy3-free",
         max_tokens=1024,
-        system="You are a helpful expert on mysterious places and phenomena. Answer the user's question using ONLY the information provided in the Context below. If the context doesn't contain the answer, politely say ""I dont have enough information in my database to answer that."
+
         messages=[
             {
+                "role": "system",
+                "content": "You are a helpful expert on mysterious places and phenomena. Answer the user's question using ONLY the information provided in the Context below. If the context doesn't contain the answer, politely say 'I dont have enough information in my database to answer that.'"
+            },
+            {
                 "role": "user",
-                "content": "Answer this user query: "
-                + query
-                + " with the following context: "
-                + search_result,
+                "content": "Answer this user query: " + query + " with the following context: " + search_result,
             }
         ],
     )
 
-    return (response.content[0].text)
+    return response.choices[0].message.content
 
-    
+
+
+print(handle_user_query("Are there any reports of a Bigfoot or large bipedal creature sighting?"))
 
